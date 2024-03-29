@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
 
         printf("[msg] %s, %d bytes: %s\n", caddrstr, (int)count, buf); // printa a msg do cliente
                                                                        
-        sprintf(buf, "remote endpoint: %.1000s\n", caddrstr); // limita print para 1000 bytes
+        sprintf(buf, "remote endpoint: %.100s\n", caddrstr); // limita print para 1000 bytes
         count = send(csock, buf, strlen(buf)+1, 0); // manda a resposta para o cliente | count -> nmr de bytes
         if(count != strlen(buf)+1) logexit("send");
         close(csock);

@@ -22,6 +22,79 @@ int valid_class_identifier(char *sala_id_s) {
     return sala_id >= 0 && sala_id <= 7;
 }
 
+char *get_datas(char *str) {
+    int spaces = 0;
+    char *start = str;
+
+    while (*str && spaces < 2) {
+        if (*str == ' ') {
+            spaces++;
+            if (spaces == 2) start = str + 1; // Start at the character after the second space
+        }
+        str++;
+    }
+
+    if (spaces < 2) return NULL; // Less than 2 spaces found, return NULL
+
+    return strdup(start); // Return a copy of the substring
+}
+
+char *get_datas_from_file(char *filename) {
+    //printf("filename: %s %ld\n", filename, strlen(filename));
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        fprintf(stderr, "Erro ao abrir o arquivo %s\n", filename);
+        return NULL;
+    }
+
+    // Obtém o tamanho do arquivo
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    // Aloca memória para armazenar o conteúdo do arquivo
+    char *content = (char *)malloc(file_size + 1);
+    if (!content) {
+        fprintf(stderr, "Erro ao alocar memória\n");
+        fclose(file);
+        return NULL;
+    }
+
+    // Lê o conteúdo do arquivo e remove os caracteres de nova linha
+    size_t total_read = 0;
+    int number;
+    while (fscanf(file, "%d", &number) == 1) {
+        total_read += snprintf(content + total_read, file_size - total_read, "%d ", number);
+    }
+    content[total_read - 1] = '\0'; // Substitui o último espaço por um terminador nulo
+
+    fclose(file);
+    return content;
+}
+
+int valid_sensor_values_identifier(char *str) {
+    char *token;
+    char *copy = strdup(str);
+
+    if (!copy) {
+        fprintf(stderr, "Erro ao alocar memória\n");
+        return 0;
+    }
+
+    token = strtok(copy, " ");
+    while (token != NULL) {
+        int value = atoi(token);
+        if (value < 0 || value > 100) {
+            free(copy);
+            return 0; // Valor inválido encontrado
+        }
+        token = strtok(NULL, " ");
+    }
+
+    free(copy);
+    return 1; // Todos os valores são válidos
+}
+
 int main(int argc, char **argv) {
     if (argc < 3) usage(argc, argv);
 
@@ -44,26 +117,99 @@ int main(int argc, char **argv) {
 
     // cliente manda uma mensagem (linha 43 a 49)
     char buf[BUFSZ];
-    char *mss;
+    char mss[BUFSZ];
     memset(buf, 0, BUFSZ); //inicializa o buffer como 0
-
+    memset(mss, 0, BUFSZ);
     printf("mensagem: ");
     fgets(buf, BUFSZ-1, stdin); //le do teclado o que o user vai digitar
     
     size_t count;
 
-    if(strncmp(buf, "register", 8) == 0) {
+    if(strncmp(buf, "register", 8) == 0) { // 1a funcionalidade
         char *sala_id_s = strchr(buf, ' ');
         //printf("sala_id: %s", sala_id_s);
         if(valid_class_identifier(sala_id_s)) {
             //printf("valid\n");
-            mss = "CAD_REQ";
+            //mss = "CAD_REQ";
+            memcpy(mss, "CAD_REQ", 7);
+            strcat(mss, sala_id_s);
+            //printf("valid: %s\n", mss);
             count = send(_socket, mss, strlen(mss)+1, 0);
         }
         else {
             printf("ERROR 01\n");
             exit(EXIT_FAILURE);
         }
+    }
+    else if(strncmp(buf, "init info", 9) == 0 || strncmp(buf, "init file", 9) == 0) { // 2a funcionalidade
+        char *datas;
+        if(strncmp(buf, "init info", 9) == 0) datas = get_datas(buf);
+        else {
+            // manipulacao para retornar o nome correto do arquivo, sem caracteres indesejados
+            char *filename = strrchr(buf, ' ');
+            char *result = (char *)malloc(strlen(filename)-1);
+            strncpy(result, filename+1, strlen(filename)-2);
+            result[strlen(filename)-2] = '\0';
+            datas = get_datas_from_file(result);
+        }
+        memcpy(mss, "INI_REQ ", 8);
+        strcat(mss, datas);
+        char *sala_id_s = (char *)(&datas[0]);
+        if(valid_class_identifier(sala_id_s)) {
+            char * values = strchr(datas, ' ');
+            if(valid_sensor_values_identifier(values)) count = send(_socket, mss, strlen(mss)+1, 0);
+            else {
+                printf("ERROR 04\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+        else {
+            printf("ERROR 01\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    else if(strncmp(buf, "shutdown", 8) == 0) { // 3a funcionalidade
+        char *sala_id_s = strchr(buf, ' ');
+        memcpy(mss, "DES_REQ", 7);
+        strcat(mss, sala_id_s);
+        count = send(_socket, mss, strlen(mss)+1, 0);
+    }
+    else if(strncmp(buf, "update info", 11) == 0 || strncmp(buf, "update file", 11) == 0) { // 4a funcionalidade
+        char *datas;
+        if(strncmp(buf, "update info", 11) == 0) datas = get_datas(buf);
+        else {
+            // manipulacao para retornar o nome correto do arquivo, sem caracteres indesejados
+            char *filename = strrchr(buf, ' ');
+            char *result = (char *)malloc(strlen(filename)-1);
+            strncpy(result, filename+1, strlen(filename)-2);
+            result[strlen(filename)-2] = '\0';
+            datas = get_datas_from_file(result);
+        }
+        memcpy(mss, "ALT_REQ ", 8);
+        strcat(mss, datas);
+        char *sala_id_s = (char *)(&datas[0]);
+        if(valid_class_identifier(sala_id_s)) {
+            char * values = strchr(datas, ' ');
+            if(valid_sensor_values_identifier(values)) count = send(_socket, mss, strlen(mss)+1, 0);
+            else {
+                printf("ERROR 04\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+        else {
+            printf("ERROR 01\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    else if(strncmp(buf, "load info", 9) == 0) { // 5a funcionalidade
+        char *sala_id_s = strrchr(buf, ' ');
+        memcpy(mss, "SAL_REQ", 7);
+        strcat(mss, sala_id_s);
+        count = send(_socket, mss, strlen(mss)+1, 0);
+    }   
+    else if(strncmp(buf, "load rooms", 10) == 0) { // 6a funcionalidade
+        memcpy(mss, "CAD_REQ", 7);
+        count = send(_socket, mss, strlen(mss)+1, 0);
     }
     else printf("other action\n");
 
