@@ -18,6 +18,53 @@ void usage(int argc, char **argv) {
     exit(EXIT_FAILURE);
 }
 
+typedef struct {
+    int id;
+    char *dado;
+} sensor;
+
+typedef struct {
+    int id;
+    int estado;
+} ventilador;
+
+typedef struct {
+    int id;
+    sensor *sensores;
+    ventilador *ventiladores;
+} sala;
+
+// inicializa as salas de forma que, inicialmente, todas sao identificadas como nao existentes (a partir do id = -1)
+sala* init_salas() { 
+    sala *salas = malloc(8 * sizeof(sala));
+
+    if(salas == NULL) {
+        printf("Erro ao alocar memória.\n");
+        logexit("Erro ao alocar memória.\n");
+    }
+
+    for(int i = 0; i < 8; i++) {
+        sala s;
+        s.id = -1;
+        s.sensores = malloc(2 * sizeof(sensor));
+        s.ventiladores = malloc(4 * sizeof(ventilador));
+
+        for(int j = 0; j < 2; j++) {
+            s.sensores[j].id = j;
+            s.sensores[j].dado = malloc(21);
+            strcpy(s.sensores[j].dado, "-99"); // sensor ainda nao instalado
+        }
+        for(int j = 0; j < 4; j++) {
+            s.ventiladores[j].id = j;
+            s.ventiladores[j].estado = 0;
+        }
+
+        salas[i] = s;
+    }
+
+    return salas;
+}
+
 int main(int argc, char **argv) {
     if(argc < 3) usage(argc, argv);
 
@@ -42,6 +89,8 @@ int main(int argc, char **argv) {
     //listen
     if(listen(_socket, 10) != 0) logexit("listen"); // 10 -> quantidade de conexoes que podem estar pendentes para tratamento (pode ser outro valor)
 
+    sala *salas = init_salas();
+    
     char addrstr[BUFSZ];
     addrtostr(addr, addrstr, BUFSZ);
     printf("bound to %s, waiting connections\n", addrstr);
@@ -53,7 +102,7 @@ int main(int argc, char **argv) {
         socklen_t caddrlen = sizeof(cstorage); 
 
         int csock = accept(_socket, caddr, &caddrlen); // retorna um novo socket (client socket)
-                                                        // dá accept no _socket e cria um outro socket para falar com o cliente (socket que recebe conexao e que conversa com o cliente)  
+                                                       // dá accept no _socket e cria um outro socket para falar com o cliente (socket que recebe conexao e que conversa com o cliente)  
                                         
         if(csock == -1) logexit("accept");
 
@@ -69,10 +118,42 @@ int main(int argc, char **argv) {
         // nesse caso, o que chegar no primeiro recv sera a msg do cliente a ser considerada (msm se incompleta)
 
         printf("[msg] %s, %d bytes: %s\n", caddrstr, (int)count, buf); // printa a msg do cliente
+        
+        char mss[BUFSZ];
+        memset(mss, 0, BUFSZ);
+
+        if(strncmp(buf, "CAD_REQ", 7) == 0) { // 1a funcionalidade
+            char *sala_id_s = strchr(buf, ' ');
+            int sala_id = sala_id_s[1] - '0'; // converte de char para int
+            //printf("sala: %d\n", sala_id);
+            if(salas[sala_id].id != -1) memcpy(mss, "ERROR 02", 8);
+            else {
+                salas[sala_id].id = sala_id;
+                memcpy(mss, "OK 01", 5);
+            }
+        } else if(strncmp(buf, "DES_REQ", 7) == 0) { // 3a funcionalidade
+            char *sala_id_s = strchr(buf, ' ');
+            int sala_id = sala_id_s[1] - '0'; // converte de char para int
+            if(salas[sala_id].id == -1) memcpy(mss, "ERROR 03", 8);
+            else {
+               if(strncmp(salas[sala_id].sensores[0].dado, "-99", 3) == 0) memcpy(mss, "ERROR 06", 8);
+               else {
+                for(int i = 0; i < 2; i++) strcpy(salas[sala_id].sensores[i].dado, "-1");
+                memcpy(mss, "OK 03", 5);
+               }
+            }
+        } 
+        else printf("other action\n");
                                                                        
-        sprintf(buf, "remote endpoint: %.100s\n", caddrstr); // limita print para 1000 bytes
+        sprintf(buf, "mensagem do servidor: %.100s\n", mss); // limita print para 1000 bytes
         count = send(csock, buf, strlen(buf)+1, 0); // manda a resposta para o cliente | count -> nmr de bytes
         if(count != strlen(buf)+1) logexit("send");
         close(csock);
     }
+
+    for (int i = 0; i < 8; i++) {
+        free(salas[i].sensores);
+        free(salas[i].ventiladores);
+    }
+    free(salas);
 }

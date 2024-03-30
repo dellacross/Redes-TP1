@@ -9,7 +9,22 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#define BUFSZ 1024 //buff size
+#define BUFSZ 500 //buff size
+
+#define ERROR01 "ERROR 01: SALA INVÁLIDA"
+#define ERROR02 "ERROR 02: SALA JÁ EXISTE"
+#define ERROR03 "ERROR 03: SALA INEXISTENTE"
+#define ERROR04 "ERROR 04: SENSORES INVÁLIDOS"
+#define ERROR05 "ERROR 05: SENSORES JÁ INSTALADOS"
+#define ERROR06 "ERROR 06: SENSORES NÃO INSTALADOS"
+
+#define OK01 "OK 01: SALA INSTACIADA COM SUCESSO"
+#define OK02 "OK 02: SENSORES INICIALIZADOS COM SUCESSO"
+#define OK03 "OK 03: SENSORES DESLIGADOS COM SUCESSO"
+#define OK04 "OK 04: INFORMAÇÕES ATUALIZADAS COM SUCESSO"
+
+#define MIN_ID_SALA 0
+#define MAX_ID_SALA 7
 
 void usage(int argc, char **argv) {
     printf("usage: %s <server IP> <server port>\n", argv[0]);
@@ -19,7 +34,7 @@ void usage(int argc, char **argv) {
 
 int valid_class_identifier(char *sala_id_s) {
     int sala_id = atoi(sala_id_s);
-    return sala_id >= 0 && sala_id <= 7;
+    return sala_id >= MIN_ID_SALA && sala_id <= MAX_ID_SALA;
 }
 
 char *get_datas(char *str) {
