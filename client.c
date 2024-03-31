@@ -11,20 +11,26 @@
 
 #define BUFSZ 500 //buff size
 
-#define ERROR01 "ERROR 01: SALA INVÁLIDA"
-#define ERROR02 "ERROR 02: SALA JÁ EXISTE"
-#define ERROR03 "ERROR 03: SALA INEXISTENTE"
-#define ERROR04 "ERROR 04: SENSORES INVÁLIDOS"
-#define ERROR05 "ERROR 05: SENSORES JÁ INSTALADOS"
-#define ERROR06 "ERROR 06: SENSORES NÃO INSTALADOS"
+#define ERROR01 "Sala Inválida\n"
+#define ERROR02 "Sala já Existe\n"
+#define ERROR03 "Sala Inexistente\n"
+#define ERROR04 "Sensores Inválidos\n"
+#define ERROR05 "Sensores já Instalados\n"
+#define ERROR06 "Sensores não Instalados\n"
 
-#define OK01 "OK 01: SALA INSTACIADA COM SUCESSO"
-#define OK02 "OK 02: SENSORES INICIALIZADOS COM SUCESSO"
-#define OK03 "OK 03: SENSORES DESLIGADOS COM SUCESSO"
-#define OK04 "OK 04: INFORMAÇÕES ATUALIZADAS COM SUCESSO"
+#define OK01 "Sala Instanciada com Sucesso\n"
+#define OK02 "Sensores Inicializados com Sucesso\n"
+#define OK03 "Sensores Desligados com Sucesso\n"
+#define OK04 "Informações Atualizadas com Sucesso\n"
 
-#define MIN_ID_SALA 0
-#define MAX_ID_SALA 7
+#define MIN_ID_SALA 0 //menor id valido para uma sala
+#define MAX_ID_SALA 7 //maior id valido para uma sala
+#define MIN_TEMP_SENSOR 0 //menor temperatura valida 
+#define MAX_TEMP_SENSOR 40 //maior temperatura valida
+#define MIN_UM_SENSOR 0 //menor umidade valida
+#define MAX_UM_SENSOR 100 //maior umidade valida
+#define MIN_ESTADO_VENT 0 //menor id para estado de ventilador
+#define MAX_ESTADO_VENT 2 //maior id para estado de ventilador
 
 void usage(int argc, char **argv) {
     printf("usage: %s <server IP> <server port>\n", argv[0]);
@@ -37,29 +43,28 @@ int valid_class_identifier(char *sala_id_s) {
     return sala_id >= MIN_ID_SALA && sala_id <= MAX_ID_SALA;
 }
 
-char *get_datas(char *str) {
+char *get_datas(char *str) { //manipula uma string (str) para retirar os valores dos dados
     int spaces = 0;
     char *start = str;
 
     while (*str && spaces < 2) {
         if (*str == ' ') {
             spaces++;
-            if (spaces == 2) start = str + 1; // Start at the character after the second space
+            if (spaces == 2) start = str + 1; 
         }
         str++;
     }
 
-    if (spaces < 2) return NULL; // Less than 2 spaces found, return NULL
+    if (spaces < 2) return "Erro ao abrir o arquivo\n"; 
 
-    return strdup(start); // Return a copy of the substring
+    return strdup(start);
 }
 
 char *get_datas_from_file(char *filename) {
-    //printf("filename: %s %ld\n", filename, strlen(filename));
     FILE *file = fopen(filename, "r");
     if (!file) {
         fprintf(stderr, "Erro ao abrir o arquivo %s\n", filename);
-        return NULL;
+        return "Erro ao abrir o arquivo\n";
     }
 
     // Obtém o tamanho do arquivo
@@ -72,7 +77,7 @@ char *get_datas_from_file(char *filename) {
     if (!content) {
         fprintf(stderr, "Erro ao alocar memória\n");
         fclose(file);
-        return NULL;
+        return "Erro ao alocar memória\n";
     }
 
     // Lê o conteúdo do arquivo e remove os caracteres de nova linha
@@ -87,27 +92,26 @@ char *get_datas_from_file(char *filename) {
     return content;
 }
 
-int valid_sensor_values_identifier(char *str) {
-    char *token;
-    char *copy = strdup(str);
+int valid_sensor_values_identifier(char *str) { // identifica se os valores para os sensores e ventiladores sao validos
+    int s1, s2, v1, v2, v3, v4;
 
-    if (!copy) {
-        fprintf(stderr, "Erro ao alocar memória\n");
-        return 0;
-    }
+    sscanf(str, " %d %d %d %d %d %d", &s1, &s2, &v1, &v2, &v3, &v4);
 
-    token = strtok(copy, " ");
-    while (token != NULL) {
-        int value = atoi(token);
-        if (value < 0 || value > 100) {
-            free(copy);
-            return 0; // Valor inválido encontrado
-        }
-        token = strtok(NULL, " ");
-    }
-
-    free(copy);
-    return 1; // Todos os valores são válidos
+    if( 
+        s1 >= MIN_TEMP_SENSOR && 
+        s1 <= MAX_TEMP_SENSOR && 
+        s2 >= MIN_UM_SENSOR && 
+        s2 <= MAX_UM_SENSOR &&
+        (v1 - 10) >= MIN_ESTADO_VENT &&
+        (v1 - 10) <= MAX_ESTADO_VENT &&
+        (v2 - 20) >= MIN_ESTADO_VENT &&
+        (v2 - 20) <= MAX_ESTADO_VENT &&
+        (v3 - 30) >= MIN_ESTADO_VENT &&
+        (v3 - 30) <= MAX_ESTADO_VENT &&
+        (v4 - 40) >= MIN_ESTADO_VENT &&
+        (v4 - 40) <= MAX_ESTADO_VENT
+    ) return 1;
+    else return 0;
 }
 
 int main(int argc, char **argv) {
@@ -152,7 +156,7 @@ int main(int argc, char **argv) {
             count = send(_socket, mss, strlen(mss)+1, 0);
         }
         else {
-            printf("ERROR 01\n");
+            printf(ERROR01);
             exit(EXIT_FAILURE);
         }
     }
@@ -170,16 +174,16 @@ int main(int argc, char **argv) {
         memcpy(mss, "INI_REQ ", 8);
         strcat(mss, datas);
         char *sala_id_s = (char *)(&datas[0]);
-        if(valid_class_identifier(sala_id_s)) {
+        if(valid_class_identifier(sala_id_s) && strncmp(datas, "Erro", 4) != 0) {
             char * values = strchr(datas, ' ');
             if(valid_sensor_values_identifier(values)) count = send(_socket, mss, strlen(mss)+1, 0);
             else {
-                printf("ERROR 04\n");
+                printf(ERROR04);
                 exit(EXIT_FAILURE);
             }
         }
         else {
-            printf("ERROR 01\n");
+            printf(ERROR01);
             exit(EXIT_FAILURE);
         }
     }
@@ -203,16 +207,16 @@ int main(int argc, char **argv) {
         memcpy(mss, "ALT_REQ ", 8);
         strcat(mss, datas);
         char *sala_id_s = (char *)(&datas[0]);
-        if(valid_class_identifier(sala_id_s)) {
+        if(valid_class_identifier(sala_id_s) && strncmp(datas, "Erro", 4) != 0) {
             char * values = strchr(datas, ' ');
             if(valid_sensor_values_identifier(values)) count = send(_socket, mss, strlen(mss)+1, 0);
             else {
-                printf("ERROR 04\n");
+                printf(ERROR04);
                 exit(EXIT_FAILURE);
             }
         }
         else {
-            printf("ERROR 01\n");
+            printf(ERROR01);
             exit(EXIT_FAILURE);
         }
     }
@@ -223,19 +227,15 @@ int main(int argc, char **argv) {
         count = send(_socket, mss, strlen(mss)+1, 0);
     }   
     else if(strncmp(buf, "load rooms", 10) == 0) { // 6a funcionalidade
-        memcpy(mss, "CAD_REQ", 7);
+        memcpy(mss, "VAL_REQ", 7);
         count = send(_socket, mss, strlen(mss)+1, 0);
     }
     else printf("other action\n");
 
-    //size_t count = send(_socket, buf, strlen(buf)+1, 0); //(socket, buffer, tamanho da mensagem)
     // count -> nmr de bytes efetivamente transmitidos na rede
     if(count != (strlen(mss)+1)) logexit("exit"); // se o nmr de bytes for diferente do que foi pedido para se transmitir (strlen(buf)+1)
 
-    // cliente recebe uma resposta (linha 51 a 62)
     memset(buf, 0, BUFSZ); //inicializa o buffer como 0
-
-    // o recv recebe o dado, mas o servidor pode mandar o dado parcelas pequenas, logo, deve-se receber até o count == 0. Com isso, deve-se criar uma variavel (total) que armazena o total de dados recebidos até o momento, mas sempre colocar o dado no local correto do buffer (buff)
     
     unsigned total = 0;
     while(1) { // recebe x bytes por vezes e coloca em ordem no buffer (buff) até o recv retornar 0 (servidor terminou de mandar os dados)
@@ -247,8 +247,24 @@ int main(int argc, char **argv) {
     }
     close(_socket);
 
-    printf("received %u bytes\n", total);
-    puts(buf);
+    if(strncmp(buf, "OK01", 4) == 0) printf(OK01);
+    else if(strncmp(buf, "OK02", 4) == 0) printf(OK02);
+    else if(strncmp(buf, "OK03", 4) == 0) printf(OK03);
+    else if(strncmp(buf, "OK04", 4) == 0) printf(OK04);
+    else if(strncmp(buf, "SAL_RES", 7) == 0) {
+        char *datas = strchr(buf, ' ');
+        printf("salas:%s\n", datas);
+        
+    } else if(strncmp(buf, "CAD_RES", 7) == 0) {
+        char *datas = strchr(buf, ' ');
+        printf("salas:%s\n", datas);
+    } 
+    else if(strncmp(buf, "ERROR01", 7) == 0) printf(ERROR01);
+    else if(strncmp(buf, "ERROR02", 7) == 0) printf(ERROR02);
+    else if(strncmp(buf, "ERROR03", 7) == 0) printf(ERROR03);
+    else if(strncmp(buf, "ERROR04", 7) == 0) printf(ERROR04);
+    else if(strncmp(buf, "ERROR05", 7) == 0) printf(ERROR05);
+    else if(strncmp(buf, "ERROR06", 7) == 0) printf(ERROR06);
 
     exit(EXIT_SUCCESS);
 }
