@@ -202,28 +202,30 @@ int main(int argc, char **argv) {
                     sprintf(resp, "SAL_RES %d %s %s", sala_id, salas[sala_id-1].dados_sensores, salas[sala_id-1].ventiladores);
 
                     memcpy(mss, resp, strlen(resp)+1);
+                    free(resp);
                 }
             }
         } else if(strncmp(buf, "VAL_REQ", 7) == 0) { // 6a funcionalidade
             int aux = 0;
-            for(int i = 0; i < 7; i ++) { // verifica se ha salas cadastradas
-                if(salas[i].id != -1) aux = 1;
-            }
+            for(int i = 0; i < 7; i ++) if(salas[i].id != -1) aux = 1; // verifica se ha salas cadastradas
 
             if(aux == 0) memcpy(mss, "ERROR03", 7);
             else {
                 char *dados_salas = concatenar_salas(salas);
-                char resp[BUFSZ];
-                strcpy(resp, "CAD_RES ");
-                strcat(resp, dados_salas);
+                char *resp = malloc(strlen("CAD_RES ") + strlen(dados_salas));
+                sprintf(resp, "CAD_RES %s", dados_salas);
                 memcpy(mss, resp, strlen(resp)+1);
+                free(resp);
             }
+        } 
+        
+        if(strncmp(buf, "kill", 4) == 0) close(_socket);
+        else {
+            strcpy(buf, mss); 
+            count = send(csock, buf, strlen(buf)+1, 0); // manda a resposta para o cliente | count -> nmr de bytes
+            if(count != strlen(buf)+1) logexit("send");
         }
-                                                                       
-        strcpy(buf, mss); 
-        count = send(csock, buf, strlen(buf)+1, 0); // manda a resposta para o cliente | count -> nmr de bytes
-        if(count != strlen(buf)+1) logexit("send");
-        close(csock);
+        close(csock);                                       
     }
 
     for (int i = 0; i < 8; i++) free(salas[i].ventiladores);
