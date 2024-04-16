@@ -32,9 +32,11 @@
 #define MIN_ESTADO_VENT 0 //menor id para estado de ventilador
 #define MAX_ESTADO_VENT 2 //maior id para estado de ventilador
 
+#define MIN_VALID_SENSOR_DATAS_SZ 15 // tamanho minimo de uma string com dados dos sensores strlen(0 0 10 20 30 40)
+#define MAX_VALID_SENSOR_DATAS_SZ 17 // tamanho minimo de uma string com dados dos sensores strlen(80 80 10 20 30 40)
+
 void usage(int argc, char **argv) {
     printf("usage: %s <server IP> <server port>\n", argv[0]);
-    printf("example: %s 127.0.0.1 51551\n", argv[0]);
     exit(EXIT_FAILURE);
 }
 
@@ -43,7 +45,7 @@ int valid_class_identifier(char *sala_id_s) { // identifica se o ID da sala eh v
     return sala_id >= MIN_ID_SALA && sala_id <= MAX_ID_SALA;
 }
 
-char *get_datas(char *datas) { //manipula uma string (datas) para retirar os valores dos dados
+char *get_datas_from_command_line(char *datas) { //manipula uma string (datas) para retirar os valores dos dados
     int spaces = 0;
     char *str = datas;
 
@@ -55,9 +57,10 @@ char *get_datas(char *datas) { //manipula uma string (datas) para retirar os val
         datas++;
     }
 
-    if (spaces < 2) return "Erro ao abrir o arquivo\n"; 
+    if (spaces < 2) return "Erro ao ler a entrada\n"; 
 
-    return str;
+    if(strlen(str) < MIN_VALID_SENSOR_DATAS_SZ) return "-1";
+    else return str;
 }
 
 char *get_datas_from_file(char *filename) {
@@ -122,126 +125,147 @@ int main(int argc, char **argv) {
 
     int _socket;
     _socket = socket(storage.ss_family, SOCK_STREAM, 0); //storage.ss_family -> tipo do protocolo (ipv4 | ipv6) | SOCK_STREAM -> SOCKET TCP
-    if(_socket == -1) logexit("socket");
+    if(_socket == -1) exit(EXIT_FAILURE);
 
     struct sockaddr *addr = (struct sockaddr *)(&storage); //pega o ponteiro para o storage, converte para o tipo do ponteiro *addr (sockaddr) e joga para a variavel addr, para depois passar para o connect
 
-    if(connect(_socket, addr, sizeof(storage)) != 0) logexit("connect"); //addr -> endereco do servidor
+    if(connect(_socket, addr, sizeof(storage)) != 0) exit(EXIT_FAILURE); //addr -> endereco do servidor
 
     char addrstr[BUFSZ];
     addrtostr(addr, addrstr, BUFSZ);
 
-    printf("conntected to %s\n", addrstr);
-
     // cliente manda uma mensagem (linha 43 a 49)
+    
+    unsigned total = 0;
     char buf[BUFSZ];
     char mss[BUFSZ];
     memset(buf, 0, BUFSZ); //inicializa o buffer como 0
     memset(mss, 0, BUFSZ);
-    printf("mensagem: ");
-    fgets(buf, BUFSZ-1, stdin); //le do teclado o que o user vai digitar
-    
-    size_t count;
 
-    if(strncmp(buf, "register", 8) == 0) { // 1a funcionalidade
-        char *sala_id_s = strchr(buf, ' ');
-        if(valid_class_identifier(sala_id_s)) {
-            memcpy(mss, "CAD_REQ", 7);
+    while(1) { // recebe x bytes por vezes e coloca em ordem no buffer (buff) até o recv retornar 0 (servidor terminou de mandar os dados)
+        printf("mensagem: ");
+        fgets(buf, BUFSZ-1, stdin); //le do teclado o que o user vai digitar
+
+        printf("leu a msg: %s\n", buf);
+
+        size_t count;
+
+        if(strncmp(buf, "register", 8) == 0) { // 1a funcionalidade
+            char *sala_id_s = strchr(buf, ' ');
+            if(valid_class_identifier(sala_id_s)) {
+                memcpy(mss, "CAD_REQ", 7);
+                strcat(mss, sala_id_s);
+                count = send(_socket, mss, strlen(mss)+1, 0);
+            }
+            else printf(ERROR01);
+        }
+        else if(strncmp(buf, "init info", 9) == 0 || strncmp(buf, "init file", 9) == 0) { // 2a funcionalidade
+            char *datas = malloc(MAX_VALID_SENSOR_DATAS_SZ * sizeof(char));
+            if(strncmp(buf, "init info", 9) == 0) {
+                char *res = get_datas_from_command_line(buf);
+                memcpy(datas, res, strlen(res));
+            }
+            else {
+                // manipulacao para retornar o nome correto do arquivo, sem caracteres indesejados
+                char *res = strrchr(buf, ' ');
+                char *filename = (char *)malloc(strlen(res)-1);
+                strncpy(filename, res+1, strlen(res)-2);
+                filename[strlen(res)-2] = '\0';
+                datas = get_datas_from_file(filename);
+                if(filename) free(filename);
+            }
+
+            if(strncmp(datas, "-1", 2) == 0) printf(ERROR04);
+            else {
+                memcpy(mss, "INI_REQ ", strlen("INI_REQ "));
+                strcat(mss, datas);
+                char *sala_id_s = (char *)(&datas[0]);
+
+                if(valid_class_identifier(sala_id_s) && strncmp(datas, "Erro", strlen("Erro")) != 0) {
+                    char * values = strchr(datas, ' ');
+                    if(valid_sensor_values_identifier(values)) count = send(_socket, mss, strlen(mss)+1, 0);
+                    else printf(ERROR04);
+                }
+                else printf(ERROR01);
+            }
+            //if(datas) free(datas);
+        }
+        else if(strncmp(buf, "shutdown", 8) == 0) { // 3a funcionalidade
+            char *sala_id_s = strchr(buf, ' ');
+            memcpy(mss, "DES_REQ", strlen("DES_REQ"));
             strcat(mss, sala_id_s);
             count = send(_socket, mss, strlen(mss)+1, 0);
         }
-        else printf(ERROR01);
-    }
-    else if(strncmp(buf, "init info", 9) == 0 || strncmp(buf, "init file", 9) == 0) { // 2a funcionalidade
-        char *datas;
-        if(strncmp(buf, "init info", 9) == 0) datas = get_datas(buf);
-        else {
-            // manipulacao para retornar o nome correto do arquivo, sem caracteres indesejados
-            char *res = strrchr(buf, ' ');
-            char *filename = (char *)malloc(strlen(res)-1);
-            strncpy(filename, res+1, strlen(res)-2);
-            filename[strlen(res)-2] = '\0';
-            datas = get_datas_from_file(filename);
-        }
-        memcpy(mss, "INI_REQ ", 8);
-        strcat(mss, datas);
-        char *sala_id_s = (char *)(&datas[0]);
-        if(valid_class_identifier(sala_id_s) && strncmp(datas, "Erro", 4) != 0) {
-            char * values = strchr(datas, ' ');
-            if(valid_sensor_values_identifier(values)) count = send(_socket, mss, strlen(mss)+1, 0);
-            else printf(ERROR04);
-        }
-        else printf(ERROR01);
-    }
-    else if(strncmp(buf, "shutdown", 8) == 0) { // 3a funcionalidade
-        char *sala_id_s = strchr(buf, ' ');
-        memcpy(mss, "DES_REQ", 7);
-        strcat(mss, sala_id_s);
-        count = send(_socket, mss, strlen(mss)+1, 0);
-    }
-    else if(strncmp(buf, "update info", 11) == 0 || strncmp(buf, "update file", 11) == 0) { // 4a funcionalidade
-        char *datas;
-        if(strncmp(buf, "update info", 11) == 0) datas = get_datas(buf);
-        else {
-            // manipulacao para retornar o nome correto do arquivo, sem caracteres indesejados
-            char *filename = strrchr(buf, ' '); 
-            char *result = (char *)malloc(strlen(filename)-1);
-            strncpy(result, filename+1, strlen(filename)-2);
-            result[strlen(filename)-2] = '\0';
-            datas = get_datas_from_file(result);
-        }
-        memcpy(mss, "ALT_REQ ", 8);
-        strcat(mss, datas);
-        char *sala_id_s = (char *)(&datas[0]); // identifica o ID da sala desejada
-        if(valid_class_identifier(sala_id_s) && strncmp(datas, "Erro", 4) != 0) {
-            char * values = strchr(datas, ' '); // identifica os dados para atualizacao
-            if(valid_sensor_values_identifier(values)) count = send(_socket, mss, strlen(mss)+1, 0);
-            else printf(ERROR04);
-        }
-        else printf(ERROR01);
-    }
-    else if(strncmp(buf, "load info", 9) == 0) { // 5a funcionalidade
-        char *sala_id_s = strrchr(buf, ' '); // identifica o ID da sala desejada
-        memcpy(mss, "SAL_REQ", 7);
-        strcat(mss, sala_id_s);
-        count = send(_socket, mss, strlen(mss)+1, 0);
-    }   
-    else if(strncmp(buf, "load rooms", 10) == 0) { // 6a funcionalidade
-        memcpy(mss, "VAL_REQ", 7);
-        count = send(_socket, mss, strlen(mss)+1, 0);
-    } else if(strncmp(buf, "kill", 4) == 0) count = send(_socket, buf, strlen(buf)+1, 0);
+        else if(strncmp(buf, "update info", strlen("update info")) == 0 || strncmp(buf, "update file", strlen("update file")) == 0) { // 4a funcionalidade
+            char *datas;
+            if(strncmp(buf, "update info", strlen("update info")) == 0) datas = get_datas_from_command_line(buf);
+            else {
+                // manipulacao para retornar o nome correto do arquivo, sem caracteres indesejados
+                char *filename = strrchr(buf, ' '); 
+                char *result = (char *)malloc(strlen(filename)-1);
+                strncpy(result, filename+1, strlen(filename)-2);
+                result[strlen(filename)-2] = '\0';
+                datas = get_datas_from_file(result);
+            }
 
-    // count -> nmr de bytes efetivamente transmitidos na rede
-    if(count != (strlen(mss)+1)) logexit("exit"); // se o nmr de bytes for diferente do que foi pedido para se transmitir (strlen(buf)+1)
+            memcpy(mss, "ALT_REQ ", strlen("ALT_REQ "));
+            strcat(mss, datas);
+            char *sala_id_s = (char *)(&datas[0]); // identifica o ID da sala desejada
+            if(valid_class_identifier(sala_id_s) && strncmp(datas, "Erro", strlen("Erro")) != 0) {
+                char * values = strchr(datas, ' '); // identifica os dados para atualizacao
+                if(valid_sensor_values_identifier(values)) count = send(_socket, mss, strlen(mss)+1, 0);
+                else printf(ERROR04);
+            }
+            else printf(ERROR01);
+        }
+        else if(strncmp(buf, "load info", strlen("load info")) == 0) { // 5a funcionalidade
+            char *sala_id_s = strrchr(buf, ' '); // identifica o ID da sala desejada (valor apos o ultimo caracter ' ')
+            memcpy(mss, "SAL_REQ", strlen("SAL_REQ"));
+            strcat(mss, sala_id_s);
+            count = send(_socket, mss, strlen(mss)+1, 0);
+        }   
+        else if(strncmp(buf, "load rooms", strlen("load rooms")) == 0) { // 6a funcionalidade
+            memcpy(mss, "VAL_REQ", strlen("VAL_REQ"));
+            count = send(_socket, mss, strlen(mss)+1, 0);
+        } else if(strncmp(buf, "kill", 4) == 0) {
+            count = send(_socket, buf, strlen(buf)+1, 0);
+            break;
+        }
+        else printf("Mensagem Inválida\n");
 
-    memset(buf, 0, BUFSZ); //inicializa o buffer como 0
+        // count -> nmr de bytes efetivamente transmitidos na rede
+        //if(count != (strlen(mss)+1)) exit(EXIT_FAILURE); // se o nmr de bytes for diferente do que foi pedido para se transmitir (strlen(buf)+1)
     
-    unsigned total = 0;
-    while(1) { // recebe x bytes por vezes e coloca em ordem no buffer (buff) até o recv retornar 0 (servidor terminou de mandar os dados)
         count = recv(_socket, buf + total, BUFSZ - total, 0); //recebe a resposta do servidor (recebe o dado no socket, coloca-o no buf e limita o tamanho do dado em BUFFSZ)
-
+        printf("count %ld\n", count);
         if(count == 0) break; // não recebeu nada (só ocorre qnd a conexão está fechada) - conexão finalizada
 
-        total+=count;                                           
+        total+=count;        
+
+        if(strncmp(buf, "OK01", 4) == 0) printf(OK01);
+        else if(strncmp(buf, "OK02", 4) == 0) printf(OK02);
+        else if(strncmp(buf, "OK03", 4) == 0) printf(OK03);
+        else if(strncmp(buf, "OK04", 4) == 0) printf(OK04);
+        else if(strncmp(buf, "SAL_RES", 7) == 0) {
+            char *datas = strchr(buf, ' ');
+            char *data_form = malloc(strlen(buf) * sizeof(char));
+
+            int id, s1, s2, v1, v2, v3, v4;
+            sscanf(datas, " %d %d %d %d %d %d %d", &id, &s1, &s2, &v1, &v2, &v3, &v4);
+            sprintf(data_form, "sala %d: %d %d %d %d %d %d", id, s1, s2, v1, v2, v3, v4);
+            printf("%s\n", data_form);
+            
+        } else if(strncmp(buf, "CAD_RES", 7) == 0) {
+            char *datas = strchr(buf, ' ');
+            printf("salas:%s\n", datas);
+        } 
+        else if(strncmp(buf, "ERROR01", 7) == 0) printf(ERROR01);
+        else if(strncmp(buf, "ERROR02", 7) == 0) printf(ERROR02);
+        else if(strncmp(buf, "ERROR03", 7) == 0) printf(ERROR03);
+        else if(strncmp(buf, "ERROR04", 7) == 0) printf(ERROR04);
+        else if(strncmp(buf, "ERROR05", 7) == 0) printf(ERROR05);
+        else if(strncmp(buf, "ERROR06", 7) == 0) printf(ERROR06);
+        
     }
     close(_socket);
-
-    if(strncmp(buf, "OK01", 4) == 0) printf(OK01);
-    else if(strncmp(buf, "OK02", 4) == 0) printf(OK02);
-    else if(strncmp(buf, "OK03", 4) == 0) printf(OK03);
-    else if(strncmp(buf, "OK04", 4) == 0) printf(OK04);
-    else if(strncmp(buf, "SAL_RES", 7) == 0) {
-        char *datas = strchr(buf, ' ');
-        printf("salas:%s\n", datas);
-        
-    } else if(strncmp(buf, "CAD_RES", 7) == 0) {
-        char *datas = strchr(buf, ' ');
-        printf("salas:%s\n", datas);
-    } 
-    else if(strncmp(buf, "ERROR01", 7) == 0) printf(ERROR01);
-    else if(strncmp(buf, "ERROR02", 7) == 0) printf(ERROR02);
-    else if(strncmp(buf, "ERROR03", 7) == 0) printf(ERROR03);
-    else if(strncmp(buf, "ERROR04", 7) == 0) printf(ERROR04);
-    else if(strncmp(buf, "ERROR05", 7) == 0) printf(ERROR05);
-    else if(strncmp(buf, "ERROR06", 7) == 0) printf(ERROR06);
 }
