@@ -134,19 +134,12 @@ int main(int argc, char **argv) {
     char addrstr[BUFSZ];
     addrtostr(addr, addrstr, BUFSZ);
 
-    // cliente manda uma mensagem (linha 43 a 49)
-    
-    unsigned total = 0;
-    char buf[BUFSZ];
-    char mss[BUFSZ];
-    memset(buf, 0, BUFSZ); //inicializa o buffer como 0
-    memset(mss, 0, BUFSZ);
-
-    while(1) { // recebe x bytes por vezes e coloca em ordem no buffer (buff) até o recv retornar 0 (servidor terminou de mandar os dados)
+            char buf[BUFSZ];
+        char mss[BUFSZ];
+        memset(buf, 0, BUFSZ); //inicializa o buffer como 0
+        memset(mss, 0, BUFSZ);
         printf("mensagem: ");
         fgets(buf, BUFSZ-1, stdin); //le do teclado o que o user vai digitar
-
-        printf("leu a msg: %s\n", buf);
 
         size_t count;
 
@@ -229,43 +222,46 @@ int main(int argc, char **argv) {
             count = send(_socket, mss, strlen(mss)+1, 0);
         } else if(strncmp(buf, "kill", 4) == 0) {
             count = send(_socket, buf, strlen(buf)+1, 0);
-            break;
         }
         else printf("Mensagem Inválida\n");
 
-        // count -> nmr de bytes efetivamente transmitidos na rede
-        //if(count != (strlen(mss)+1)) exit(EXIT_FAILURE); // se o nmr de bytes for diferente do que foi pedido para se transmitir (strlen(buf)+1)
+    // cliente manda uma mensagem (linha 43 a 49)
+    
+    // count -> nmr de bytes efetivamente transmitidos na rede
+    //if(count != (strlen(mss)+1)) exit(EXIT_FAILURE); // se o nmr de bytes for diferente do que foi pedido para se transmitir (strlen(buf)+1)
+    
+    unsigned total = 0;
+    while(1) { // recebe x bytes por vezes e coloca em ordem no buffer (buff) até o recv retornar 0 (servidor terminou de mandar os dados)
     
         count = recv(_socket, buf + total, BUFSZ - total, 0); //recebe a resposta do servidor (recebe o dado no socket, coloca-o no buf e limita o tamanho do dado em BUFFSZ)
-        printf("count %ld\n", count);
         if(count == 0) break; // não recebeu nada (só ocorre qnd a conexão está fechada) - conexão finalizada
 
         total+=count;        
-
-        if(strncmp(buf, "OK01", 4) == 0) printf(OK01);
-        else if(strncmp(buf, "OK02", 4) == 0) printf(OK02);
-        else if(strncmp(buf, "OK03", 4) == 0) printf(OK03);
-        else if(strncmp(buf, "OK04", 4) == 0) printf(OK04);
-        else if(strncmp(buf, "SAL_RES", 7) == 0) {
-            char *datas = strchr(buf, ' ');
-            char *data_form = malloc(strlen(buf) * sizeof(char));
-
-            int id, s1, s2, v1, v2, v3, v4;
-            sscanf(datas, " %d %d %d %d %d %d %d", &id, &s1, &s2, &v1, &v2, &v3, &v4);
-            sprintf(data_form, "sala %d: %d %d %d %d %d %d", id, s1, s2, v1, v2, v3, v4);
-            printf("%s\n", data_form);
-            
-        } else if(strncmp(buf, "CAD_RES", 7) == 0) {
-            char *datas = strchr(buf, ' ');
-            printf("salas:%s\n", datas);
-        } 
-        else if(strncmp(buf, "ERROR01", 7) == 0) printf(ERROR01);
-        else if(strncmp(buf, "ERROR02", 7) == 0) printf(ERROR02);
-        else if(strncmp(buf, "ERROR03", 7) == 0) printf(ERROR03);
-        else if(strncmp(buf, "ERROR04", 7) == 0) printf(ERROR04);
-        else if(strncmp(buf, "ERROR05", 7) == 0) printf(ERROR05);
-        else if(strncmp(buf, "ERROR06", 7) == 0) printf(ERROR06);
-        
     }
+    
+    if(strncmp(buf, "OK01", 4) == 0) printf(OK01);
+    else if(strncmp(buf, "OK02", 4) == 0) printf(OK02);
+    else if(strncmp(buf, "OK03", 4) == 0) printf(OK03);
+    else if(strncmp(buf, "OK04", 4) == 0) printf(OK04);
+    else if(strncmp(buf, "SAL_RES", 7) == 0) {
+        char *datas = strchr(buf, ' ');
+        char *data_form = malloc(strlen(buf) * sizeof(char));
+
+        int id, s1, s2, v1, v2, v3, v4;
+        sscanf(datas, " %d %d %d %d %d %d %d", &id, &s1, &s2, &v1, &v2, &v3, &v4);
+        sprintf(data_form, "sala %d: %d %d %d %d %d %d", id, s1, s2, v1, v2, v3, v4);
+        printf("%s\n", data_form);
+        
+    } else if(strncmp(buf, "CAD_RES", 7) == 0) {
+        char *datas = strchr(buf, ' ');
+        printf("salas:%s\n", datas);
+    } 
+    else if(strncmp(buf, "ERROR01", 7) == 0) printf(ERROR01);
+    else if(strncmp(buf, "ERROR02", 7) == 0) printf(ERROR02);
+    else if(strncmp(buf, "ERROR03", 7) == 0) printf(ERROR03);
+    else if(strncmp(buf, "ERROR04", 7) == 0) printf(ERROR04);
+    else if(strncmp(buf, "ERROR05", 7) == 0) printf(ERROR05);
+    else if(strncmp(buf, "ERROR06", 7) == 0) printf(ERROR06);
+
     close(_socket);
 }

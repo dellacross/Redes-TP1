@@ -129,8 +129,6 @@ int main(int argc, char **argv) {
         // nesse caso, o que chegar no primeiro recv sera a msg do cliente a ser considerada (msm se incompleta)
 
         if(count != 0) printf("[msg] %s, %d bytes: %s\n", caddrstr, (int)count, buf); // printa a msg do cliente
-        
-        printf("count: %ld\n", count); 
 
         char mss[BUFSZ];
         memset(mss, 0, BUFSZ);
