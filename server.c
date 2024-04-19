@@ -213,8 +213,7 @@ int main(int argc, char **argv) {
                 char *sala_id_s = strchr(buf, ' ');
                 int sala_id = atoi(sala_id_s);
                 
-                if((sala_id == 0 && strncmp(sala_id_s, " info", strlen(" info")) == 0) || sala_id < MIN_ID_SALA || sala_id > MAX_ID_SALA) memcpy(mss, "ERROR01", strlen("ERROR01"));
-                else if(salas[sala_id].id == -1) memcpy(mss, "ERROR03", strlen("ERROR03"));
+                if((sala_id == 0 && strncmp(sala_id_s, " info", strlen(" info")) == 0) || sala_id < MIN_ID_SALA || sala_id > MAX_ID_SALA || salas[sala_id].id == -1) memcpy(mss, "ERROR03", strlen("ERROR03"));
                 else {
 
                     if(salas[sala_id].inicializado == 0) memcpy(mss, "ERROR06", strlen("ERROR06"));
