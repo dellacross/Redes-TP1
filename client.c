@@ -148,8 +148,7 @@ int main(int argc, char **argv) {
         if(strncmp(buf, "register", 8) == 0) { // 1a funcionalidade
             char *sala_id_s = strchr(buf, ' ');
             if(valid_class_identifier(sala_id_s)) {
-                memcpy(mss, "CAD_REQ", 7);
-                strcat(mss, sala_id_s);
+                sprintf(mss, "CAD_REQ%s", sala_id_s);
                 count = send(_socket, mss, strlen(mss)+1, 0);
             }
             else printf(ERROR01);
@@ -172,8 +171,7 @@ int main(int argc, char **argv) {
 
             if(strncmp(datas, "-1", 2) == 0) printf(ERROR04);
             else {
-                memcpy(mss, "INI_REQ ", strlen("INI_REQ "));
-                strcat(mss, datas);
+                sprintf(mss, "INI_REQ %s", datas);
                 char *sala_id_s = (char *)(&datas[0]);
 
                 if(valid_class_identifier(sala_id_s) && strncmp(datas, "Erro", strlen("Erro")) != 0) {
@@ -186,8 +184,7 @@ int main(int argc, char **argv) {
         }
         else if(strncmp(buf, "shutdown", 8) == 0) { // 3a funcionalidade
             char *sala_id_s = strchr(buf, ' ');
-            memcpy(mss, "DES_REQ", strlen("DES_REQ"));
-            strcat(mss, sala_id_s);
+            sprintf(mss, "DES_REQ%s", sala_id_s);
             count = send(_socket, mss, strlen(mss)+1, 0);
         }
         else if(strncmp(buf, "update info", strlen("update info")) == 0 || strncmp(buf, "update file", strlen("update file")) == 0) { // 4a funcionalidade
@@ -202,8 +199,7 @@ int main(int argc, char **argv) {
                 datas = get_datas_from_file(result);
             }
 
-            memcpy(mss, "ALT_REQ ", strlen("ALT_REQ "));
-            strcat(mss, datas);
+            sprintf(mss, "ALT_REQ %s", datas);
             char *sala_id_s = (char *)(&datas[0]); // identifica o ID da sala desejada
             if(valid_class_identifier(sala_id_s) && strncmp(datas, "Erro", strlen("Erro")) != 0) {
                 char * values = strchr(datas, ' '); // identifica os dados para atualizacao
@@ -214,8 +210,7 @@ int main(int argc, char **argv) {
         }
         else if(strncmp(buf, "load info", strlen("load info")) == 0) { // 5a funcionalidade
             char *sala_id_s = strrchr(buf, ' '); // identifica o ID da sala desejada (valor apos o ultimo caracter ' ')
-            memcpy(mss, "SAL_REQ", strlen("SAL_REQ"));
-            strcat(mss, sala_id_s);
+            sprintf(mss, "SAL_REQ%s", sala_id_s);
             count = send(_socket, mss, strlen(mss)+1, 0);
         }   
         else if(strncmp(buf, "load rooms", strlen("load rooms")) == 0) { // 6a funcionalidade
@@ -226,7 +221,10 @@ int main(int argc, char **argv) {
             close(_socket);
             break;
         }
-        else printf("Mensagem Inválida\n");
+        else {
+            printf("Mensagem Inválida\n");
+            break;
+        }
 
         if(count != 0) {
             count = recv(_socket, buf, BUFSZ, 0);
