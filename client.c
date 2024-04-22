@@ -183,7 +183,6 @@ int main(int argc, char **argv) {
                 }
                 else printf(ERROR01);
             }
-            //if(datas) free(datas);
         }
         else if(strncmp(buf, "shutdown", 8) == 0) { // 3a funcionalidade
             char *sala_id_s = strchr(buf, ' ');
@@ -228,47 +227,10 @@ int main(int argc, char **argv) {
             break;
         }
         else printf("Mensagem Inválida\n");
-        
-        // count -> nmr de bytes efetivamente transmitidos na rede
-        //if(count != (strlen(mss)+1)) exit(EXIT_FAILURE); // se o nmr de bytes for diferente do que foi pedido para se transmitir (strlen(buf)+1)
-        /*
-        unsigned total = 0;
-        while(1) { // recebe x bytes por vezes e coloca em ordem no buffer (buff) até o recv retornar 0 (servidor terminou de mandar os dados)
-            printf("count send: %ld\n", count);
-            count = recv(_socket, buf + total, BUFSZ - total, 0); //recebe a resposta do servidor (recebe o dado no socket, coloca-o no buf e limita o tamanho do dado em BUFFSZ)
-            printf("count rcv: %ld\n", count);
-            if(count == 0) break; // não recebeu nada (só ocorre qnd a conexão está fechada) - conexão finalizada
-
-            total+=count;
-            printf("total: %d\n", total);        
-        }
-        */
 
         if(count != 0) {
             count = recv(_socket, buf, BUFSZ, 0);
-            if(strncmp(buf, "OK01", 4) == 0) printf(OK01);
-            else if(strncmp(buf, "OK02", 4) == 0) printf(OK02);
-            else if(strncmp(buf, "OK03", 4) == 0) printf(OK03);
-            else if(strncmp(buf, "OK04", 4) == 0) printf(OK04);
-            else if(strncmp(buf, "SAL_RES", 7) == 0) {
-                char *datas = strchr(buf, ' ');
-                char *data_form = malloc(strlen(buf) * sizeof(char));
-
-                int id, s1, s2, v1, v2, v3, v4;
-                sscanf(datas, " %d %d %d %d %d %d %d", &id, &s1, &s2, &v1, &v2, &v3, &v4);
-                sprintf(data_form, "sala %d: %d %d %d %d %d %d", id, s1, s2, v1, v2, v3, v4);
-                printf("%s\n", data_form);
-                
-            } else if(strncmp(buf, "CAD_RES", 7) == 0) {
-                char *datas = strchr(buf, ' ');
-                printf("salas:%s\n", datas);
-            } 
-            else if(strncmp(buf, "ERROR01", 7) == 0) printf(ERROR01);
-            else if(strncmp(buf, "ERROR02", 7) == 0) printf(ERROR02);
-            else if(strncmp(buf, "ERROR03", 7) == 0) printf(ERROR03);
-            else if(strncmp(buf, "ERROR04", 7) == 0) printf(ERROR04);
-            else if(strncmp(buf, "ERROR05", 7) == 0) printf(ERROR05);
-            else if(strncmp(buf, "ERROR06", 7) == 0) printf(ERROR06);
+            printf("%s", buf);
         }
     }
 

@@ -11,6 +11,13 @@
 
 #define BUFSZ 500 //buff size
 
+#define ERROR01 "Sala Inválida\n"
+#define ERROR02 "Sala já Existe\n"
+#define ERROR03 "Sala Inexistente\n"
+#define ERROR04 "Sensores Inválidos\n"
+#define ERROR05 "Sensores já Instalados\n"
+#define ERROR06 "Sensores não Instalados\n"
+
 #define OK01 "Sala Instanciada com Sucesso\n"
 #define OK02 "Sensores Inicializados com Sucesso\n"
 #define OK03 "Sensores Desligados com Sucesso\n"
@@ -61,19 +68,127 @@ sala* init_salas() {
 }
 
 char* concatenar_salas(sala *salas) {
-    char* resultado = malloc(1);  // Começa com uma string vazia
-    resultado[0] = '\0';  // Termina a string com o caractere nulo
+    char* str = malloc(1);  // Começa com uma string vazia
+    str[0] = '\0';  // Termina a string com o caractere nulo
 
     for (int i = 0; i < 8; i++) {
         if(salas[i].id != -1) {        
-            char temp[100];  // Buffer temporário para construir a string de cada sala
-            sprintf(temp, "%d (%s %s) ", salas[i].id, salas[i].dados_sensores, salas[i].ventiladores);
-            resultado = realloc(resultado, strlen(resultado) + strlen(temp) + 1);  // Realoca a memória para a nova string
-            strcat(resultado, temp);  // Concatena a string temporária ao resultado
+            char buffer[100];  // buffer temporário para construir a string de cada sala
+            sprintf(buffer, "%d (%s %s) ", salas[i].id, salas[i].dados_sensores, salas[i].ventiladores);
+            str = realloc(str, strlen(str) + strlen(buffer) + 1);  // Realoca a memória para a nova string
+            strcat(str, buffer);  // Concatena a string temporária ao resultado
         }
     }
 
-    return resultado;
+    return str;
+}
+
+char *command_identifier(char *buf, int _socket, int csock, sala *salas) {
+    if(strncmp(buf, "kill", 4) == 0) {
+        close(_socket);
+        close(csock); 
+        return "-1";
+    }
+    else if(strncmp(buf, "CAD_REQ", strlen("CAD_REQ")) == 0) { // 1a funcionalidade
+        char *sala_id_s = strchr(buf, ' ');
+        int sala_id = atoi(sala_id_s);
+
+        if(salas[sala_id].id != -1) return ERROR02;
+        else {
+            salas[sala_id].id = sala_id;
+            salas[sala_id].dados_sensores = "-1 -1";
+            salas[sala_id].ventiladores = "-1 -1 -1 -1";
+            salas[sala_id].inicializado = 0;
+            return OK01;
+        }
+    } 
+    else if(strncmp(buf, "INI_REQ", strlen("INI_REQ")) == 0) { // 2a funcionalidade
+        char *sala_id_s = strchr(buf, ' ');
+        int sala_id = atoi(sala_id_s);
+        char *valores_sensores = malloc(strlen(buf) * sizeof(char));
+        char *estados_ventiladores = malloc(strlen(buf) * sizeof(char));
+        int data1, data2, data3, data4, data5, data6, data7;
+
+        if (sscanf(buf, "%*s %*s %d %d %d %d %d %d %d", &data1, &data2, &data3, &data4, &data5, &data6, &data7) >= 4) {
+            sprintf(valores_sensores, "%d %d", data1, data2);
+            sprintf(estados_ventiladores, "%d %d %d %d", data3, data4, data5, data6);
+        }
+
+        if(salas[sala_id].id == -1) return ERROR03;
+        else {
+        if(salas[sala_id].inicializado) return ERROR05;
+            else {
+                salas[sala_id].dados_sensores = valores_sensores;
+                salas[sala_id].ventiladores = estados_ventiladores;
+                salas[sala_id].inicializado = 1; 
+                return OK02;
+            }
+        }
+    } 
+    else if(strncmp(buf, "DES_REQ", 7) == 0) { // 3a funcionalidade
+        char *sala_id_s = strchr(buf, ' ');
+        int sala_id = atoi(sala_id_s); // converte de char para int
+        if(salas[sala_id].id == -1) return ERROR03;
+        else {
+            if(salas[sala_id].inicializado == 0) return ERROR06;
+            else {
+                strcpy(salas[sala_id].dados_sensores, "-1 -1");
+                strcpy(salas[sala_id].ventiladores, "-1 -1 -1 -1"); 
+                return OK03;
+            }
+        }
+    } 
+    else if(strncmp(buf, "ALT_REQ", 7) == 0) { // 4a funcionalidade
+        char *sala_id_s = strchr(buf, ' ');
+        int sala_id = atoi(sala_id_s); // converte de char para int
+        char *valores_sensores = malloc(strlen(buf) * sizeof(char));
+        char *estados_ventiladores = malloc(strlen(buf) * sizeof(char));
+        int data1, data2, data3, data4, data5, data6, data7;
+
+        if (sscanf(buf, "%*s %*s %d %d %d %d %d %d %d", &data1, &data2, &data3, &data4, &data5, &data6, &data7) >= 4) {
+            sprintf(valores_sensores, "%d %d", data1, data2);
+            sprintf(estados_ventiladores, "%d %d %d %d", data3, data4, data5, data6);
+        }
+
+        if(salas[sala_id].id == -1) return ERROR03;
+        else {
+            if(salas[sala_id].inicializado == 0) return ERROR06;
+            else {
+                strcpy(salas[sala_id].dados_sensores, valores_sensores);
+                strcpy(salas[sala_id].ventiladores, estados_ventiladores); 
+                return OK04;
+            }
+        }
+    } 
+    else if(strncmp(buf, "SAL_REQ", 7) == 0) { // 5a funcionalidade
+        char *sala_id_s = strchr(buf, ' ');
+        int sala_id = atoi(sala_id_s);
+        
+        if((sala_id == 0 && strncmp(sala_id_s, " info", strlen(" info")) == 0) || sala_id < MIN_ID_SALA || sala_id > MAX_ID_SALA || salas[sala_id].id == -1) return ERROR03;
+        else {
+            if(salas[sala_id].inicializado == 0) return ERROR06;
+            else {
+                char* resp = malloc(8 + strlen(salas[sala_id].dados_sensores) + strlen(salas[sala_id].ventiladores) + 1);
+                sprintf(resp, "sala %d: %s %s\n", sala_id, salas[sala_id].dados_sensores, salas[sala_id].ventiladores);
+
+                return resp;
+            }
+        }
+    } 
+    else if(strncmp(buf, "VAL_REQ", 7) == 0) { // 6a funcionalidade
+        int aux = 0;
+        for(int i = MIN_ID_SALA; i <= MAX_ID_SALA; i++) if(salas[i].id != -1) aux = 1; // verifica se ha salas cadastradas
+
+        if(aux == 0) return ERROR03;
+        else {
+            char *dados_salas = concatenar_salas(salas);
+            char *resp = malloc(strlen("salas: ") + strlen(dados_salas));
+            sprintf(resp, "salas: %s\n", dados_salas);
+            return resp;
+        }
+    } 
+    
+    return "-1";
 }
 
 int main(int argc, char **argv) {
@@ -136,114 +251,13 @@ int main(int argc, char **argv) {
 
             if(count != 0) printf("[msg] %s, %d bytes: %s\n", caddrstr, (int)count, buf); // printa a msg do cliente
 
-            if(strncmp(buf, "kill", 4) == 0) {
-                close(_socket);
-                close(csock); 
-                break;
-            }
-            else if(strncmp(buf, "CAD_REQ", strlen("CAD_REQ")) == 0) { // 1a funcionalidade
-                char *sala_id_s = strchr(buf, ' ');
-                int sala_id = atoi(sala_id_s);
+            char *mss_buf = command_identifier(buf, _socket, csock, salas);
 
-                if(salas[sala_id].id != -1) memcpy(mss, "ERROR02", strlen("ERROR02"));
-                else {
-                    salas[sala_id].id = sala_id;
-                    salas[sala_id].dados_sensores = "-1 -1";
-                    salas[sala_id].ventiladores = "-1 -1 -1 -1";
-                    salas[sala_id].inicializado = 0;
-                    memcpy(mss, "OK01", strlen("OK01"));
-                }
-            } else if(strncmp(buf, "INI_REQ", strlen("INI_REQ")) == 0) { // 2a funcionalidade
-                char *sala_id_s = strchr(buf, ' ');
-                int sala_id = atoi(sala_id_s);
-                char *valores_sensores = malloc(strlen(buf) * sizeof(char));
-                char *estados_ventiladores = malloc(strlen(buf) * sizeof(char));
-                int data1, data2, data3, data4, data5, data6, data7;
+            memcpy(mss, mss_buf, strlen(mss_buf));
 
-                if (sscanf(buf, "%*s %*s %d %d %d %d %d %d %d", &data1, &data2, &data3, &data4, &data5, &data6, &data7) >= 4) {
-                    sprintf(valores_sensores, "%d %d", data1, data2);
-                    sprintf(estados_ventiladores, "%d %d %d %d", data3, data4, data5, data6);
-                }
+            if(atoi(mss_buf) == -1) break;
 
-                if(salas[sala_id].id == -1) memcpy(mss, "ERROR03", strlen("ERROR03"));
-                else {
-                    if(salas[sala_id].inicializado) memcpy(mss, "ERROR05", strlen("ERROR05"));
-                    else {
-                        salas[sala_id].dados_sensores = valores_sensores;
-                        salas[sala_id].ventiladores = estados_ventiladores;
-                        salas[sala_id].inicializado = 1; 
-                        memcpy(mss, "OK02", strlen("OK02"));
-                    }
-                }
-            } else if(strncmp(buf, "DES_REQ", 7) == 0) { // 3a funcionalidade
-                char *sala_id_s = strchr(buf, ' ');
-                int sala_id = atoi(sala_id_s); // converte de char para int
-                if(salas[sala_id].id == -1) memcpy(mss, "ERROR03", strlen("ERROR03"));
-                else {
-                    if(salas[sala_id].inicializado == 0) memcpy(mss, "ERROR06", strlen("ERROR06"));
-                    else {
-                        strcpy(salas[sala_id].dados_sensores, "-1 -1");
-                        strcpy(salas[sala_id].ventiladores, "-1 -1 -1 -1"); 
-                        memcpy(mss, "OK03", strlen("OK03"));
-                    }
-                }
-            } else if(strncmp(buf, "ALT_REQ", 7) == 0) { // 4a funcionalidade
-                char *sala_id_s = strchr(buf, ' ');
-                int sala_id = atoi(sala_id_s); // converte de char para int
-                char *valores_sensores = malloc(strlen(buf) * sizeof(char));
-                char *estados_ventiladores = malloc(strlen(buf) * sizeof(char));
-                int data1, data2, data3, data4, data5, data6, data7;
-
-                if (sscanf(buf, "%*s %*s %d %d %d %d %d %d %d", &data1, &data2, &data3, &data4, &data5, &data6, &data7) >= 4) {
-                    sprintf(valores_sensores, "%d %d", data1, data2);
-                    sprintf(estados_ventiladores, "%d %d %d %d", data3, data4, data5, data6);
-                }
-
-                if(salas[sala_id].id == -1) memcpy(mss, "ERROR03", strlen("ERROR03"));
-                else {
-                    if(salas[sala_id].inicializado == 0) memcpy(mss, "ERROR06", strlen("ERROR06"));
-                    else {
-                        strcpy(salas[sala_id].dados_sensores, valores_sensores);
-                        strcpy(salas[sala_id].ventiladores, estados_ventiladores); 
-
-                        memcpy(mss, "OK04", strlen("OK04"));
-                    }
-                }
-            } else if(strncmp(buf, "SAL_REQ", 7) == 0) { // 5a funcionalidade
-                char *sala_id_s = strchr(buf, ' ');
-                int sala_id = atoi(sala_id_s);
-                
-                if((sala_id == 0 && strncmp(sala_id_s, " info", strlen(" info")) == 0) || sala_id < MIN_ID_SALA || sala_id > MAX_ID_SALA || salas[sala_id].id == -1) memcpy(mss, "ERROR03", strlen("ERROR03"));
-                else {
-
-                    if(salas[sala_id].inicializado == 0) memcpy(mss, "ERROR06", strlen("ERROR06"));
-                    else {
-                        char* resp = malloc(8 + strlen(salas[sala_id].dados_sensores) + strlen(salas[sala_id].ventiladores) + 1);
-                        sprintf(resp, "SAL_RES %d %s %s", sala_id, salas[sala_id].dados_sensores, salas[sala_id].ventiladores);
-
-                        memcpy(mss, resp, strlen(resp));
-                        free(resp);
-                    }
-                }
-            } else if(strncmp(buf, "VAL_REQ", 7) == 0) { // 6a funcionalidade
-                int aux = 0;
-                for(int i = MIN_ID_SALA; i <= MAX_ID_SALA; i++) if(salas[i].id != -1) aux = 1; // verifica se ha salas cadastradas
-
-                if(aux == 0) memcpy(mss, "ERROR03", strlen("ERROR03"));
-                else {
-                    char *dados_salas = concatenar_salas(salas);
-                    char *resp = malloc(strlen("CAD_RES ") + strlen(dados_salas));
-                    sprintf(resp, "CAD_RES %s", dados_salas);
-                    memcpy(mss, resp, strlen(resp));
-                    free(resp);
-                }
-            } 
-            
-            //strcpy(buf, mss); 
-            //count = send(csock, buf, strlen(buf)+1, 0); // manda a resposta para o cliente | count -> nmr de bytes
-            //if(count != strlen(buf)+1) exit(EXIT_FAILURE);
             count = send(csock, mss, strlen(mss)+1, 0); // manda a resposta para o cliente | count -> nmr de bytes
-            if(count != strlen(mss)+1) exit(EXIT_FAILURE);
         }
 
         close(csock); 
